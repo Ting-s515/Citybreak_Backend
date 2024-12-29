@@ -2,13 +2,9 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+using testCitybreak.DTO;
 using testCitybreak.Models;
-
 namespace testCitybreak.Controllers
 {
 	public class RegisterAndLoginController : Controller
@@ -96,7 +92,7 @@ namespace testCitybreak.Controllers
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"錯誤: {ex.Message}");
+				_logger.LogError("錯誤={} 堆疊資訊={}", ex.Message, ex);
 				return StatusCode(500, new
 				{
 					success = false,
@@ -107,51 +103,60 @@ namespace testCitybreak.Controllers
 		[HttpGet("googleLogin")]
 		public IActionResult GoogleLogin()
 		{
-			var redirectUrl = Url.Action("GoogleResponse", "RegisterAndLogin");
+			string? redirectUrl = Url.Action("GoogleResponse", "RegisterAndLogin");
 			return Challenge(new AuthenticationProperties { RedirectUri = redirectUrl }, "Google");
 		}
 
 		[HttpGet("googleResponse")]
 		public async Task<IActionResult> GoogleResponse()
 		{
-			var accessToken = await HttpContext.GetTokenAsync("access_token");
+			string? accessToken = await HttpContext.GetTokenAsync("access_token");
 			string googleName = "", googleEmail = "";
 			if (accessToken != null)
 			{
 				try
 				{
-					using (var client = new HttpClient())
+					using (HttpClient client = new HttpClient())
 					{
+						//jwt
 						client.DefaultRequestHeaders.Authorization = new
 							System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
 						var response = await client.GetAsync("https://www.googleapis.com/oauth2/v2/userinfo");
 						if (response.IsSuccessStatusCode)
 						{
-							var json = await response.Content.ReadAsStringAsync();
-							//回應的 JSON 資料
-							dynamic userInfo = JsonConvert.DeserializeObject(json);
-							googleName = (string)userInfo.name ?? "no name";
-							googleEmail = (string)userInfo.email ?? "no email";
+							string json = await response.Content.ReadAsStringAsync();
+							_logger.LogInformation("回傳的json data {}", json);
+
+							UserDataDTO? userInfo = JsonConvert.DeserializeObject<UserDataDTO>(json);
+							//需對應google回傳的json key
+							googleName = userInfo?.name ?? "no name";
+							googleEmail = userInfo?.email ?? "no email";
 						}
 					}
 					//檢查是否有該會員
-					var userExist = await _context.memberTable.Where(x => x.email == googleEmail)
-						.Select(x => new { x.userID, x.name, x.email, x.phone }).SingleOrDefaultAsync();
+					UserDataDTO? userExist = await _context.memberTable.Where(x => x.email == googleEmail)
+						.Select(x => new UserDataDTO
+						{
+							userID = x.userID,
+							name = x.name,
+							email = x.email,
+							phone = x.phone
+						}).SingleOrDefaultAsync();
 
 					//前端網址
 					string frontendUrl;
+					//key
+					string tempIdentifier = Guid.NewGuid().ToString();
+					_logger.LogInformation("生成的臨時識別碼: {TempIdentifier}", tempIdentifier);
 					//如果有該筆資料
 					if (userExist != null)
 					{
-						var token = GenerateJwtToken(userExist.userID);
-						frontendUrl = $"http://localhost:5173?token={token}&status=success";
+						TempStorage.Store(tempIdentifier, JsonConvert.SerializeObject(userExist));
+						frontendUrl = $"http://localhost:5173?token={tempIdentifier}&status=success";
 						return Redirect(frontendUrl);
 					}
 					else
 					{
-						//var token = GenerateJwtToken(googleName, googleEmail);
-						string tempIdentifier = Guid.NewGuid().ToString();
-						_logger.LogInformation("生成的臨時識別碼: {TempIdentifier}", tempIdentifier);
 						//存儲到 TempStorage
 						TempStorage.Store(tempIdentifier, JsonConvert.SerializeObject(new
 						{
@@ -182,48 +187,7 @@ namespace testCitybreak.Controllers
 				});
 			}
 		}
-		//資料庫有資料
-		private string GenerateJwtToken(int userID)
-		{
-			var claims = new List<Claim>
-			{
-				new Claim("userID", userID.ToString())
-			};
-			return GenerateJwtToken(claims);
-		}
-
-		// 資料庫無資料
-		private string GenerateJwtToken(string googleName, string googleEmail)
-		{
-			var claims = new List<Claim>
-			{
-				new Claim(JwtRegisteredClaimNames.Name, googleName),
-				new Claim(JwtRegisteredClaimNames.Email, googleEmail)
-			};
-			return GenerateJwtToken(claims);
-		}
-		private string GenerateJwtToken(List<Claim> claims)
-		{
-			var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET");
-			if (string.IsNullOrEmpty(secretKey))
-			{
-				throw new InvalidOperationException("JWT 密鑰未設置");
-			}
-			var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
-			var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-			var token = new JwtSecurityToken(
-				//issuer：表示 Token 的發行者
-				issuer: "https://localhost:7130",
-				//audience：表示 Token 的接收者
-				audience: "http://localhost:5173",
-				claims: claims,
-				expires: DateTime.Now.AddHours(1),
-				signingCredentials: creds
-			);
-
-			return new JwtSecurityTokenHandler().WriteToken(token);
-		}
+		//測試格式
 		[HttpGet("getDate")]
 		public IActionResult getDate()
 		{
@@ -268,7 +232,7 @@ namespace testCitybreak.Controllers
 		[HttpPost("resetPassword")]
 		public async Task<IActionResult> resetPassword([FromBody] memberTable value)
 		{
-			Console.WriteLine($"前端密碼{value.password}");
+			_logger.LogInformation("前端密碼={} ", value.password);
 			try
 			{
 				memberTable? user = await _context.memberTable.Where(x => x.email == value.email)
@@ -300,7 +264,7 @@ namespace testCitybreak.Controllers
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"錯誤類型: {ex.GetType().Name}, 錯誤訊息: {ex.Message}");
+				_logger.LogError("錯誤={} 堆疊資訊={}", ex.Message, ex);
 				return StatusCode(500, new
 				{
 					success = false,
@@ -310,55 +274,58 @@ namespace testCitybreak.Controllers
 			}
 		}
 		[HttpPost("getGoogleUserInfo")]
-		public async Task<IActionResult> GetUserInfo([FromBody] memberTable value)
+		public IActionResult GetUserInfo([FromBody] string tempToken)
 		{
-			_logger.LogInformation("GetUserInfo called with UserID: {UserID}", value.userID);
-			if (value.userID.ToString() == null)
+			_logger.LogInformation("接收到的參數: {TempToken}", tempToken);
+			if (!TempStorage.ContainsKey(tempToken))
 			{
 				return Unauthorized(new
 				{
 					success = false,
-					message = "參數為空值"
+					message = "無效的token"
 				});
 			}
-			memberTable? user = await _context.memberTable
-				.Where(x => x.userID == value.userID).FirstOrDefaultAsync();
+			string? tempData = TempStorage.GetData(tempToken);
+			_logger.LogInformation("暫存的數據{}", tempData);
+			UserDataDTO? userInfo = JsonConvert.DeserializeObject<UserDataDTO>(tempData);
+			string userID = userInfo?.userID.ToString() ?? "no id";
+			string email = userInfo?.email ?? "no email";
+			string name = userInfo?.name ?? "no name";
+			string phone = userInfo?.phone ?? "no phone";
+			//刪除暫存
+			TempStorage.Remove(tempToken);
 			return Ok(new
 			{
 				success = true,
 				message = "登入成功",
-				user.userID,
-				user.email,
-				user.phone,
-				user.name,
+				userID,
+				email,
+				name,
+				phone
 			});
 		}
 		[HttpPost("getTempGoogleUserInfo")]
 		public IActionResult GetTempGoogleUserInfo([FromBody] string tempToken)
 		{
 			_logger.LogInformation("接收到的參數: {TempToken}", tempToken);
-			// 從 TempStorage 獲取數據
-			string? tempData = TempStorage.GetData(tempToken);
-			_logger.LogInformation("暫存數據: {tempData}", tempData);
-			if (string.IsNullOrEmpty(tempData))
+			//uuid != token
+			if (!TempStorage.ContainsKey(tempToken))
 			{
-				_logger.LogWarning("無效的臨時令牌: {TempToken}", tempToken);
+				_logger.LogWarning("無效的token: {TempToken}", tempToken);
 				return Unauthorized(new
 				{
 					success = false,
-					message = "無效的臨時令牌"
+					message = "無效的token"
 				});
 			}
-			var userInfo = JsonConvert.DeserializeObject<dynamic>(tempData);
+			// 從 TempStorage 獲取數據
+			string? tempData = TempStorage.GetData(tempToken);
+			_logger.LogInformation("暫存數據: {tempData}", tempData);
+			UserDataDTO? userInfo = JsonConvert.DeserializeObject<UserDataDTO>(tempData);
 			// 提取值
-			string googleName = (string)userInfo.googleName ?? "no name";
-			string googleEmail = (string)userInfo.googleEmail ?? "no email";
+			string googleName = userInfo?.googleName ?? "no name";
+			string googleEmail = userInfo?.googleEmail ?? "no email";
 
-			// 記錄到日誌
-			_logger.LogInformation("user data: googleName={GoogleName}, googleEmail={GoogleEmail}", googleName, googleEmail);
-			// 刪除暫存數據
-			TempStorage.Remove(tempToken);
-			// 刪除暫存數據
 			TempStorage.Remove(tempToken);
 			return Ok(new
 			{

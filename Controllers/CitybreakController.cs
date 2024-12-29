@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using testCitybreak.DTO;
 using testCitybreak.Models;
 namespace testCitybreak.Controllers
 {
@@ -19,7 +20,7 @@ namespace testCitybreak.Controllers
 		[HttpPost("getProducts")]
 		public async Task<IActionResult> GetProducts([FromBody] product_classification value)
 		{
-			Console.WriteLine("已收到請求" + value.classification);
+			_logger.LogInformation("收到商品分類參數={}", value.classification);
 			try
 			{
 				List<productTable> products = await (from x in _context.product_classification
@@ -46,26 +47,26 @@ namespace testCitybreak.Controllers
 		[HttpPost("getOrders")]
 		public async Task<IActionResult> GetOrders([FromBody] orderTable value)
 		{
-			Console.WriteLine($"收到請求，userID: {value.userID}");
+			_logger.LogInformation("收到請求={}", value.userID);
 			if (value.userID == 0)
 			{
 				return BadRequest(new { success = false, message = "userID 不正確" });
 			}
 			try
 			{
-				var orders = await _context.orderTable
+				List<OrderDataDTO> orders = await _context.orderTable
 					.Where(x => x.userID == value.userID && x.orderStatus == "已付款")
-					.Select(o => new
+					.Select(o => new OrderDataDTO
 					{
-						o.orderID,
-						o.merchantTradeNo,
-						o.orderTime,
-						o.totalPrice,
-						o.orderStatus,
+						orderID = o.orderID,
+						merchantTradeNo = o.merchantTradeNo,
+						orderTime = o.orderTime,
+						totalPrice = o.totalPrice,
+						orderStatus = o.orderStatus,
 					}).ToListAsync();
 				if (!orders.Any())
 				{
-					Console.WriteLine("找不到訂單");
+					_logger.LogError("找不到訂單");
 					return NotFound(new
 					{
 						success = false,
@@ -81,7 +82,7 @@ namespace testCitybreak.Controllers
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine($"後端錯誤: {ex.Message}");
+				_logger.LogError("錯誤={} 堆疊資訊={}", ex.Message, ex);
 				return StatusCode(500, new
 				{
 					success = false,
@@ -93,28 +94,28 @@ namespace testCitybreak.Controllers
 		[HttpPost("getOrderDetail")]
 		public async Task<IActionResult> GetOrderDetail([FromBody] orderTable value)
 		{
-			Console.WriteLine($"收到請求，merchantTradeNo: {value.merchantTradeNo}");
+			_logger.LogInformation("收到訂單編號={}", value.merchantTradeNo);
 			try
 			{
-				var result = await (from order in _context.orderTable
-									where order.merchantTradeNo == value.merchantTradeNo
-									join orderDetail in _context.order_details on order.orderID equals orderDetail.orderID
-									join product in _context.productTable on orderDetail.productID equals product.productID
-									select new
-									{
-										order.merchantTradeNo,
-										order.orderTime,
-										order.totalPrice,
-										orderDetail.quantity,
-										product.productName,
-										product.imagePath,
-										product.unitPrice,
-									}).ToListAsync();
+				List<OrderDataDTO> result = await (from order in _context.orderTable
+												   where order.merchantTradeNo == value.merchantTradeNo
+												   join orderDetail in _context.order_details on order.orderID equals orderDetail.orderID
+												   join product in _context.productTable on orderDetail.productID equals product.productID
+												   select new OrderDataDTO
+												   {
+													   merchantTradeNo = order.merchantTradeNo,
+													   orderTime = order.orderTime,
+													   totalPrice = order.totalPrice,
+													   quantity = orderDetail.quantity,
+													   productName = product.productName,
+													   imagePath = product.imagePath,
+													   unitPrice = product.unitPrice,
+												   }).ToListAsync();
 				if (!result.Any())
 				{
 					return NotFound(new { success = false, message = "找不到訂單明細" });
 				}
-				var orderData = result.FirstOrDefault();
+				OrderDataDTO? orderData = result.FirstOrDefault();
 				return Ok(new
 				{
 					success = true,
