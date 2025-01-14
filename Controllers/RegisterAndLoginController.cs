@@ -21,13 +21,13 @@ namespace testCitybreak.Controllers
 		[HttpPost("login")]
 		public async Task<IActionResult> Login([FromBody] memberTable value)
 		{
-			memberTable? user = await _context.memberTable.FirstOrDefaultAsync
+			memberTable? member = await _context.memberTable.FirstOrDefaultAsync
 				(u => u.email == value.email);
-			if (user != null)
+			if (member != null)
 			{
 				//比對密碼
 				PasswordVerificationResult result = _passwordHasher.VerifyHashedPassword
-					(user, user.password, value.password);
+					(member, member.password, value.password);
 
 				//接受三個參數：用戶實體、存儲的哈希密碼和用戶輸入的密碼
 				if (result == PasswordVerificationResult.Success)
@@ -36,11 +36,11 @@ namespace testCitybreak.Controllers
 					{
 						success = true,
 						Message = "登入成功",
-						id = user.userID,
-						user.name,
-						user.email,
-						user.phone,
-						user.createdDate,
+						member.userID,
+						member.name,
+						member.email,
+						member.phone,
+						member.createdDate,
 					});
 				}
 				else
