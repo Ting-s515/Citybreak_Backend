@@ -1,6 +1,7 @@
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using testCitybreak.Models;
 
@@ -70,8 +71,9 @@ builder.Services.AddSession(options =>
 builder.Logging.ClearProviders();
 //輸出到主控台
 builder.Logging.AddConsole();
-//輸出到 Visual Studio Debug 輸出視窗
-builder.Logging.AddDebug();
+// 註冊密碼雜湊器
+builder.Services.AddScoped<PasswordHasher<memberTable>>();
+
 var app = builder.Build();
 // 啟用 CORS
 app.UseCors("AllowSpecificOrigin");
