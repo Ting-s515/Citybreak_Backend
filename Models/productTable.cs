@@ -17,9 +17,9 @@ public partial class productTable
 
     public string? imagePath { get; set; }
 
-    public byte? classificationID { get; set; }
+    public short? categoriesID { get; set; }
 
-    public virtual product_classification? classification { get; set; }
+    public virtual product_categories? categories { get; set; }
 
     public virtual ICollection<order_details> order_details { get; set; } = new List<order_details>();
 }

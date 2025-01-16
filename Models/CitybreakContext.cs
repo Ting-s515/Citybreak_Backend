@@ -19,7 +19,7 @@ public partial class CitybreakContext : DbContext
 
     public virtual DbSet<productTable> productTable { get; set; }
 
-    public virtual DbSet<product_classification> product_classification { get; set; }
+    public virtual DbSet<product_categories> product_categories { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -90,19 +90,18 @@ public partial class CitybreakContext : DbContext
             entity.Property(e => e.productName).HasMaxLength(50);
             entity.Property(e => e.unitStock).HasDefaultValue((byte)100);
 
-            entity.HasOne(d => d.classification).WithMany(p => p.productTable)
-                .HasForeignKey(d => d.classificationID)
-                .HasConstraintName("FK_classificationID");
+            entity.HasOne(d => d.categories).WithMany(p => p.productTable)
+                .HasForeignKey(d => d.categoriesID)
+                .HasConstraintName("FK_categoriesID");
         });
 
-        modelBuilder.Entity<product_classification>(entity =>
+        modelBuilder.Entity<product_categories>(entity =>
         {
-            entity.HasKey(e => e.classificationID).HasName("PK__product___93F59CB67C46909D");
+            entity.HasKey(e => e.categoriesID).HasName("PK__product___93F59CB67C46909D");
 
-            entity.HasIndex(e => e.classification, "UQ_classification").IsUnique();
+            entity.HasIndex(e => e.categories, "UQ_categories").IsUnique();
 
-            entity.Property(e => e.classificationID).ValueGeneratedOnAdd();
-            entity.Property(e => e.classification).HasMaxLength(20);
+            entity.Property(e => e.categories).HasMaxLength(20);
         });
 
         OnModelCreatingPartial(modelBuilder);

@@ -15,15 +15,25 @@ namespace testCitybreak.Controllers
 		}
 
 		[HttpPost("getProducts")]
-		public async Task<IActionResult> GetProducts([FromBody] product_classification value)
+		public async Task<IActionResult> GetProducts([FromBody] product_categories value)
 		{
-			_logger.LogInformation("收到商品分類參數={}", value.classification);
+			_logger.LogInformation("收到商品分類參數={}", value.categories);
 			try
 			{
-				List<productTable> products = await (from x in _context.product_classification
-													 where x.classification == value.classification.Trim()
-													 join y in _context.productTable on x.classificationID equals y.classificationID
+				List<productTable> products = await (from x in _context.product_categories
+													 where x.categories == value.categories.Trim()
+													 join y in _context.productTable on x.categoriesID equals y.categoriesID
 													 select y).ToListAsync();
+				_logger.LogInformation($"check Products.Count: {products.Count}");
+				if (!products.Any())
+				{
+					return NotFound(new
+					{
+						success = false,
+						message = "沒有商品",
+					});
+				}
+
 				return Ok(new
 				{
 					success = true,
@@ -61,9 +71,9 @@ namespace testCitybreak.Controllers
 						totalPrice = o.totalPrice,
 						orderStatus = o.orderStatus,
 					}).ToListAsync();
+				_logger.LogError($"check orders.Count: {orders.Count}");
 				if (!orders.Any())
 				{
-					_logger.LogError("找不到訂單");
 					return NotFound(new
 					{
 						success = false,
