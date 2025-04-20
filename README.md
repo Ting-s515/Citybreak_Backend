@@ -19,7 +19,6 @@
     <li>為熱愛戶外活動的消費者提供便捷的電商平台，專注於優質裝備的銷售，滿足各種場景需求。</li>
     <li>前後端分離：後端使用 .NET Core API ，前端使用 Vue.js 架構，達成低耦合的架構，便於日後的擴展和維護。</li>
     <li>前端連結: <a href="https://github.com/Ting-s515/CityBreak_Frontend">前端程式在這邊</a></li>
-    <li>前端程式打包: <a href="https://hub.docker.com/r/tings515/citybreak">點我到docker</a></li>
     <h2 id="technology-application">技術應用 :</h2>
     <ul>
         <li>前端 :
